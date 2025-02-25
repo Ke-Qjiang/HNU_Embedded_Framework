@@ -144,6 +144,7 @@ struct shoot_fdb_msg
  { // 云台自瞄角度控制
      float yaw;
      float pitch;
+     float AI_fire;
      float ins_low_yaw;
      float ins_low_pitch;
      float ins_low_roll;

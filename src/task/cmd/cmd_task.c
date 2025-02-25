@@ -603,17 +603,18 @@ static void remote_to_cmd_sbus(void)
         gyro_pitch_inherit =ins_data.pitch;
     }
     if (gim_cmd.ctrl_mode==GIMBAL_AUTO) {
-
-        gim_cmd.yaw = trans_fdb.yaw + gyro_yaw_inherit + 150 * rc_now->ch4 * RC_RATIO * GIMBAL_RC_MOVE_RATIO_YAW;//上位机自瞄
-        gim_cmd.pitch = trans_fdb.pitch + 100* rc_now->ch3 * RC_RATIO * GIMBAL_RC_MOVE_RATIO_PIT ;//上位机自瞄
+        gim_cmd.yaw = trans_fdb.yaw + gyro_yaw_inherit + 150 * rc_now->ch4 * RC_RATIO * GIMBAL_RC_MOVE_RATIO_YAW  ;//上位机自瞄,yaw存在延迟问题，期待上位机解决
+        gim_cmd.pitch =  trans_fdb.pitch + gyro_pitch_inherit + 100* rc_now->ch3 * RC_RATIO * GIMBAL_RC_MOVE_RATIO_PIT;
+        // gim_cmd.pitch =  GIM_pitch_Self_Define + 100* rc_now->ch3 * RC_RATIO * GIMBAL_RC_MOVE_RATIO_PIT;
+        VAL_LIMIT(gim_cmd.pitch, PIT_ANGLE_MIN, PIT_ANGLE_MAX);    //pitch软件限位
 
     }
     /* 限制云台角度 */
     VAL_LIMIT(gim_cmd.pitch, PIT_ANGLE_MIN, PIT_ANGLE_MAX);
 
     /*-------------------------------------------------底盘_云台状态机--------------------------------------------------------------*/
-    // 左拨杆sw2为上时，底盘和云台均RELAX；为中时，云台为GYRO；为下时，云台为AUTO。
-    // 右拨杆sw1为上时，底盘为FOLLOW；为中时，底盘为OPEN；为下时，底盘为SPIN。
+    //富斯i6遥控器中  SWC(3)为失能/手动（GYRO)/自动切换拨杆
+    // SWB(2)为上时，底盘为FOLLOW；为下时，底盘为SPIN。
     if (gim_cmd.ctrl_mode==GIMBAL_INIT||gim_cmd.ctrl_mode==GIMBAL_RELAX)
     {
         gim_cmd.pitch=0;
@@ -625,18 +626,14 @@ static void remote_to_cmd_sbus(void)
     case RC_UP:
         if(gim_cmd.ctrl_mode != GIMBAL_INIT && gim_cmd.ctrl_mode != GIMBAL_RELAX)
         {
-            chassis_cmd.ctrl_mode = CHASSIS_FOLLOW_GIMBAL;
+            chassis_cmd.ctrl_mode = CHASSIS_OPEN_LOOP;
         }
         else
         {
             //TODO:把开环模式改成释放，让云台归中到底盘
-            //chassis_cmd.ctrl_mode = CHASSIS_OPEN_LOOP;
             chassis_cmd.ctrl_mode = CHASSIS_RELAX;
         }
         break;
-//    case RC_MI:
-//        chassis_cmd.ctrl_mode = CHASSIS_OPEN_LOOP;
-//        break;
     case RC_DN:
         if(gim_cmd.ctrl_mode != GIMBAL_INIT && gim_cmd.ctrl_mode != GIMBAL_RELAX)
         {
@@ -694,7 +691,7 @@ static void remote_to_cmd_sbus(void)
             if(gim_fdb.back_mode == BACK_IS_OK)
             {/* 判断归中是否完成 */
                 gim_cmd.ctrl_mode = GIMBAL_AUTO;
-                chassis_cmd.ctrl_mode=CHASSIS_RELAX;
+                chassis_cmd.ctrl_mode=CHASSIS_OPEN_LOOP;
             }
         }
         break;
@@ -703,7 +700,7 @@ static void remote_to_cmd_sbus(void)
 
     if(rc_now->sw3!=RC_UP&&gim_cmd.ctrl_mode!=GIMBAL_AUTO)//判断总开关是否停止发射
     {
-        switch (rc_now->sw1)
+        switch (rc_now->sw1)  //射击使能开关
         {
             /*判断是否处于可发射状态*/
             //TODO:由于遥控器拨杆档位限制,目前连发模式还未写进状态机。两档拨杆具体值由遥控器确定，现在待定。
@@ -754,15 +751,15 @@ static void remote_to_cmd_sbus(void)
     // TODO: 添加弹频和弹速控制
     if (rc_now->ch6>0)
     {
-        shoot_cmd.shoot_freq = rc_now->ch6 / RC_MAX_VALUE*10;//连发模式拨弹电机转速
+        if((trans_fdb.AI_fire == 1 && gim_cmd.ctrl_mode==GIMBAL_AUTO) || gim_cmd.ctrl_mode==GIMBAL_GYRO )  //最下方一块为自动扳机
+        {
+            shoot_cmd.shoot_freq = rc_now->ch6 / RC_MAX_VALUE*10;//连发模式拨弹电机转速
+                shoot_cmd.shoot_freq = 9;//连发模式拨弹电机转速
+        }
     }
-    else if(rc_now->ch6<=-775)
+    else   //小于0不发射   往上方最大的一块
     {
-         shoot_cmd.cover_open=1;
-    }
-    else
-    {
-         shoot_cmd.cover_open=0;
+        shoot_cmd.shoot_freq = 0;
     }
 }
 #endif/* WHEEL_OMNI_INFANTRY */

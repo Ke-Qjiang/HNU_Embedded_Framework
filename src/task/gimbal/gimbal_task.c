@@ -78,7 +78,8 @@ static ramp_obj_t *yaw_down_ramp;//yaw_down 轴云台控制斜坡
 
 static dji_motor_object_t *gim_motor[GIM_MOTOR_NUM];  // 云台电机实例
 static float gim_motor_ref[GIM_MOTOR_NUM]; // 电机控制期望值
-
+/*pitch补偿值*/
+rt_int16_t Pitch_Inherit_Angle_0 = 0;//9000立正,5000是低到最低的real_current,3000是当时pid运动时的最低电流
 static void gimbal_motor_init();
 static rt_int16_t motor_control_yaw(dji_motor_measure_t measure);
 static rt_int16_t motor_control_pitch(dji_motor_measure_t measure);
@@ -368,6 +369,8 @@ static rt_int16_t motor_control_pitch(dji_motor_measure_t measure){
     static float pid_out_angle;         // 角度环输出
     static rt_int16_t send_data;        // 最终发送给电调的数据
 
+    if(gim_motor[PITCH]->measure.temperature > 100)  //pitch过温保护，等待改进
+        gim_cmd.ctrl_mode = GIMBAL_RELAX;
     switch (gim_cmd.ctrl_mode)
     {
         /* 根据云台模式，切换对应的控制器及观测量 */
@@ -413,6 +416,7 @@ static rt_int16_t motor_control_pitch(dji_motor_measure_t measure){
         /* 注意负号 */
         pid_out_angle = pid_calculate(pid_angle, get_angle, gim_motor_ref[PITCH]);
         send_data = pid_calculate(pid_speed, get_speed, pid_out_angle);      // 电机转动正方向与imu相反
+        send_data += Pitch_Inherit_Angle_0;
     }
 
     return send_data;

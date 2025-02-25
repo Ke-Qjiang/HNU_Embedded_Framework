@@ -25,6 +25,9 @@ int main(void)
     int count = 1;
     /* set LED Blue pin mode to output */
     rt_pin_mode(LED_B_PIN, PIN_MODE_OUTPUT);
+    /*RM C板的5V输出，接激光笔*/
+    rt_pin_mode(GET_PIN(C, 8), PIN_MODE_OUTPUT);
+    rt_pin_write(GET_PIN(C, 8), PIN_HIGH);
 
     dwt_init(CPU_FREQUENCY);
 
